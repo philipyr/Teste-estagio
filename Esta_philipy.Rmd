@@ -1,0 +1,138 @@
+---
+title: "Estágio"
+author: "Philipy Rodrigues Silva"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+
+library(dplyr)
+library(readr)
+library(tidyverse)
+library(ggplot2)
+library(ggfortify)
+library(xts)
+library(fpp2)# pacote para médias moveis
+df <- read_delim("D:/arquivos/dowloads/consumo_cerveja.csv", 
+    ";", escape_double = FALSE, trim_ws = TRUE)
+str(df)
+n=length(df$`Consumo de cerveja (litros)`)
+df = df %>%
+  mutate(`Consumo de cerveja (litros)`=as.numeric(`Consumo de cerveja (litros)`))%>%
+  mutate(tempo = seq(1,n,1))
+
+```
+# Teste para vaga de estágio
+
+## Análise descritiva dos dados
+
+```{r  }
+summary(df)
+j=prop.table(table(df$`Final de Semana`))
+cat("A probabilidade de uma pessoa beber cerveja no meio de semana é ao final de semana é respectivamente de=",j, "\n")
+
+cat("Logo a probabilidade de consumir cerveja aos meios de semana é maior que aos final de semana")
+```
+
+
+## Gráficos de despersão de cada variável 
+
+```{r }
+par(mfrow=c(2,3))
+plot(df$`Temperatura Media (C)`)
+plot(df$`Temperatura Minima (C)`)
+plot(df$`Temperatura Maxima (C)`)
+plot(df$`Precipitacao (mm)`)
+plot(df$`Final de Semana`)
+plot(df$`Consumo de cerveja (litros)`)
+
+
+```
+
+#### Observando as váriaveis é correto dizer que fazer ajuste de regressão com as variáveis observadas não fazem muito sentido, tendo em vista, que as temperaturas médias, temperaturas minima, temperaturas máxima e precipitação dificilmente teria influência no consumo de bebidas. Pórem, resolvi fazer um ajutes de regressão para os dados de precipitação em relação ás temperaturas, com o intuito de demonstrar que tenho conhecimento em ajuste de regressão.
+
+```{r}
+y= as.numeric(df$`Precipitacao (mm)`)
+
+ajuste=lm(y ~ `Temperatura Media (C)`+`Temperatura Minima (C)`+`Temperatura Maxima (C)`, data = df)
+
+summary(ajuste)
+plot(ajuste$residuals)
+par(mfrow=c(2,2))
+plot(ajuste,which = c(1:4),pch=5)
+ shapiro.test(ajuste$residuals)
+ 
+ 
+```
+
+# Grafico da série em função do tempo
+
+## Como os dados são de valores diários, é possível ajudas um modelo de séries temporais para a previsão do consumo de cerveja. 
+
+```{r}
+
+#Ajuste banco de dados
+seriex= ts(df$`Consumo de cerveja (litros)`,  frequency = n)
+
+#Plot série
+ggplot(data=seriex)+ geom_line(aes(df$tempo, seriex))+xlab('Tempo em dias')+ylab('Consumo de cerveja (litros)') + ggtitle("Consumo de cerveja diário - 2019")+ theme_bw()
+
+par(mfrow=c(1,2))
+acf(seriex)
+pacf(seriex)
+#é possivel ver pelos graficos de acf e pcf que as barras ultrapassam os limistes de segunrança
+#o que sugere uma autocorrelação 
+
+```
+##Ajuste da série pelo método de médias moveis com média igual a 7
+```{r}
+
+seriema7=ma(seriex, 7)
+
+
+
+autoplot(seriex, series="Data") +
+  autolayer(seriema7, series="3-MA") +autolayer(predict(seriema7,7), series="3-MA") +
+  xlab("Tempo em dias") + ylab("Consumo de cerveja diário") +
+  ggtitle("Consumo de cerveja - 2019") +
+  scale_colour_manual(values=c("Data"="grey50","3-MA"="red"),
+                      breaks=c("Data","3-MA"))
+
+prev=predict(seriema7,7)
+
+cat("Os valores de cosumo médio de bebidas para os próximos 7 dias são d",prev$mean,"\n")
+
+```
+##Ajuste da série pelo método de Arrima
+```{r}
+
+
+auto.arima(ts(seriex ), stepwise = FALSE)
+#ARIMA(1,1,2)
+
+modaut = Arima(ts(seriex), order = c(1,1,2))
+{par(mfrow = c(1,2))
+  acf(residuals(modaut), lag.max=24)
+  pacf(residuals(modaut), lag.max=24)
+}
+summary(modaut)
+
+
+autoplot(ts(seriex )) + autolayer(modaut$fitted)  +
+  xlab("Tempo em dias") + ylab("Consumo de cerveja diário") +
+  ggtitle("Consumo de cerveja - 2019") 
+
+
+prev2=predict(seriema7,7)
+
+cat("Os valores de cosumo médio de bebidas para os próximos 7 dias são d",prev2$mean,"\n")
+
+
+
+
+```
+
+
